@@ -18,15 +18,15 @@ type Block struct {
 }
 
 func (b *Block) Serialize() []byte {
-	var result bytes.Buffer
-	encoder := gob.NewEncoder(&result)
+	var result bytes.Buffer // buffer that will store serialized data
+	encoder := gob.NewEncoder(&result) // instance of gob.Encoder that is used to encode Go values into binary
 
-	err := encoder.Encode(b)
-	if err != nil {
+	err := encoder.Encode(b) // attempts to encode
+	if err != nil { // if error, log error and terminate
 		log.Panic(err)
 	}
 
-	return result.Bytes()
+	return result.Bytes() // return serialized data as byte array
 }
 
 
@@ -44,6 +44,7 @@ func NewGenesisBlock() *Block {
 	return NewBlock("Genesis Block", []byte{})
 }
 
+// Deserializes block
 func DeserializeBlock(d []byte) *Block {
 	var block Block
 
