@@ -135,7 +135,7 @@ Work:
 		for outIdx, out := range tx.Vout { // for each output, check if can be unlocked and if the accumulate amount is less than desired "amount"
 			if out.CanBeUnlockedWith(address) && accumulated < amount {
 				accumulated += out.Value // add value to accumulated
-				unspentOutputs[txID] = append(unspentOutputs[txID], outIdx) // output index mapped to tx.ID
+				unspentOutputs[txID] = append(unspentOutputs[txID], outIdx) // output index mapped to t
 
 				if accumulated >= amount {
 					break Work
@@ -208,6 +208,51 @@ func NewBlockchain(address string) *Blockchain {
 	}
 
 	//store tip and DB connection in blockchain struct
+	bc := Blockchain{tip, db}
+
+	return &bc
+}
+
+// CreateBlockchain creates a new blockchain DB
+func CreateBlockchain(address string) *Blockchain {
+	if dbExists() {
+		fmt.Println("Blockchain already exists.")
+		os.Exit(1)
+	}
+
+	var tip []byte
+	db, err := bolt.Open(dbFile, 0600, nil)
+	if err != nil {
+		log.Panic(err)
+	}
+
+	err = db.Update(func(tx *bolt.Tx) error {
+		cbtx := NewCoinbaseTX(address, genesisCoinbaseData)
+		genesis := NewGenesisBlock(cbtx)
+
+		b, err := tx.CreateBucket([]byte(blocksBucket))
+		if err != nil {
+			log.Panic(err)
+		}
+
+		err = b.Put(genesis.Hash, genesis.Serialize())
+		if err != nil {
+			log.Panic(err)
+		}
+
+		err = b.Put([]byte("l"), genesis.Hash)
+		if err != nil {
+			log.Panic(err)
+		}
+		tip = genesis.Hash
+
+		return nil
+	})
+
+	if err != nil {
+		log.Panic(err)
+	}
+
 	bc := Blockchain{tip, db}
 
 	return &bc

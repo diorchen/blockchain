@@ -12,7 +12,7 @@ import (
 type CLI struct{}
 
 func (cli *CLI) createBlockchain(address string) {
-	bc := createBlockchain(address)
+	bc := CreateBlockchain(address)
 	bc.db.Close()
 	fmt.Println("Done!")
 }
