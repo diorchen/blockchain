@@ -3,14 +3,17 @@
 package main
 
 import (
+	"encoding/hex"
 	"fmt"
 	"log"
+	"os"
 
 	"github.com/boltdb/bolt"
 )
 
 const dbFile = "blockchain.db"
 const blocksBucket = "blocks"
+const genesisCoinbaseData = "The Times 03/Jan/2009 Chancellor on brink of second bailout for banks"
 
 type Blockchain struct {
 	tip []byte // latest block's hash
@@ -23,7 +26,7 @@ type BlockchainIterator struct {
 	db *bolt.DB
 }
 
-func (bc *Blockchain) AddBlock(data string) {
+func (bc *Blockchain) MineBlock(transactions []*Transaction) {
 	var lastHash []byte
 
 	// start read-only transaction ('View') on BoltDB database
@@ -38,7 +41,7 @@ func (bc *Blockchain) AddBlock(data string) {
 		log.Panic(err)
 	}
 
-	newBlock := NewBlock(data, lastHash)
+	newBlock := NewBlock(transactions, lastHash)
 
 	err = bc.db.Update(func(tx *bolt.Tx) error {
 		b := tx.Bucket([]byte(blocksBucket))
@@ -56,6 +59,92 @@ func (bc *Blockchain) AddBlock(data string) {
 
 		return nil
 	})
+}
+
+func (bc *Blockchain) FindUnspentTransactions(address string) []Transaction {
+	var unspentTXs []Transaction
+	spentTXOs := make(map[string][]int)
+	bci := bc.Iterator()
+
+	for {
+		block := bci.Next()
+
+		for _, tx := range block.Transactions {
+			txID := hex.EncodeToString(tx.ID)
+
+		Outputs:
+			for outIdx, out := range tx.Vout {
+				// Was the output spent?
+				if spentTXOs[txID] != nil {
+					for _, spentOut := range spentTXOs[txID] {
+						if spentOut == outIdx {
+							continue Outputs
+						}
+					}
+				}
+
+				if out.CanBeUnlockedWith(address) {
+					unspentTXs = append(unspentTXs, *tx)
+				}
+			}
+
+			if tx.IsCoinbase() == false {
+				for _, in := range tx.Vin {
+					if in.CanUnlockOutputWith(address) {
+						inTxID := hex.EncodeToString(in.Txid)
+						spentTXOs[inTxID] = append(spentTXOs[inTxID], in.Vout)
+					}
+				}
+			}
+		}
+
+		if len(block.PrevBlockHash) == 0 {
+			break
+		}
+	}
+
+	return unspentTXs
+}
+
+// FindUTXO finds and returns all unspent transaction outputs
+func (bc *Blockchain) FindUTXO(address string) []TXOutput {
+	var UTXOs []TXOutput
+	unspentTransactions := bc.FindUnspentTransactions(address)
+
+	for _, tx := range unspentTransactions {
+		for _, out := range tx.Vout {
+			if out.CanBeUnlockedWith(address) {
+				UTXOs = append(UTXOs, out)
+			}
+		}
+	}
+
+	return UTXOs
+}
+
+// FindSpendableOutputs finds and returns unspent outputs to reference in inputs
+func (bc *Blockchain) FindSpendableOutputs(address string, amount int) (int, map[string][]int) {
+	unspentOutputs := make(map[string][]int)
+	unspentTXs := bc.FindUnspentTransactions(address)
+	accumulated := 0
+
+Work:
+	for _, tx := range unspentTXs {
+		txID := hex.EncodeToString(tx.ID)
+
+		for outIdx, out := range tx.Vout {
+			if out.CanBeUnlockedWith(address) && accumulated < amount {
+				accumulated += out.Value
+				unspentOutputs[txID] = append(unspentOutputs[txID], outIdx)
+
+				if accumulated >= amount {
+					break Work
+				}
+			}
+		}
+	}
+
+	return accumulated, unspentOutputs
 }
 
 // creates new instance of BlockchainIterator and initializes with the hash of the latest block and BoltDB database associated with it
@@ -87,8 +176,20 @@ func (i *BlockchainIterator) Next() *Block {
 	return block // return retrieved block
 }
 
+func dbExists() bool {
+	if _, err := os.Stat(dbFile); os.IsNotExist(err) {
+		return false
+	}
 
-func NewBlockchain() *Blockchain {
+	return true
+}
+
+func NewBlockchain(address string) *Blockchain {
+	if dbExists() == false {
+		fmt.Println("No existing blockchain found. Create one first.")
+		os.Exit(1)
+	}
+
 	var tip []byte
 	db, err := bolt.Open(dbFile, 0600, nil) // open BoltDB file, won't return error if DNE
 	if err != nil {
@@ -97,32 +198,7 @@ func NewBlockchain() *Blockchain {
 
 	err = db.Update(func(tx *bolt.Tx) error {
 		b := tx.Bucket([]byte(blocksBucket)) // obtain bucket storing blocks
-
-		if b == nil { // if DNE, generate genesis block
-			fmt.Println("No existing blockchain found. Creating a new one...")
-			genesis := NewGenesisBlock()
-
-			// create bucket
-			b, err := tx.CreateBucket([]byte(blocksBucket))
-			if err != nil {
-				log.Panic(err)
-			}
-			// save block into bucket
-			err = b.Put(genesis.Hash, genesis.Serialize())
-			if err != nil {
-				log.Panic(err)
-			}
-			// update 'l' key storing the last block hash of chain
-			err = b.Put([]byte("l"), genesis.Hash)
-			if err != nil {
-				log.Panic(err)
-			}
-			// update the tip
-			tip = genesis.Hash
-		} else {
-			// else, read 'l' key
-			tip = b.Get([]byte("l"))
-		}
+		tip = b.Get([]byte("l"))
 
 		return nil
 	})
@@ -130,6 +206,7 @@ func NewBlockchain() *Blockchain {
 	if err != nil {
 		log.Panic(err)
 	}
+
 	//store tip and DB connection in blockchain struct
 	bc := Blockchain{tip, db}
 
