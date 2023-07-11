@@ -31,13 +31,13 @@ func (b *Block) Serialize() []byte {
 }
 
 func (b *Block) HashTransactions() []byte {
-	var txHashes [][]byte
-	var txHash [32]byte
+	var txHashes [][]byte // stores the hashes of each transaction in the block
+	var txHash [32]byte // stores the final hash of all the transaction hashes combined
 
-	for _, tx := range b.Transactions {
+	for _, tx := range b.Transactions { // iterates over all transactions
 		txHashes = append(txHashes, tx.ID)
 	}
-	txHash = sha256.Sum256(bytes.Join(txHashes, []byte{}))
+	txHash = sha256.Sum256(bytes.Join(txHashes, []byte{})) // concatenante the transaction hashes into single byte slice
 
 	return txHash[:]
 }
@@ -52,7 +52,7 @@ func NewBlock(transactions []*Transaction, prevBlockHash []byte) *Block {
 	return block
 }
 
-func NewGenesisBlock(coinbase *Transaction) *Block {
+func NewGenesisBlock(coinbase *Transaction) *Block { // takes in initial transaction that creates the first block and awards cryptocurrency to miner
 	return NewBlock([]*Transaction{coinbase}, []byte{})
 }
 
