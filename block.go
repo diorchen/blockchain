@@ -18,16 +18,20 @@ type Block struct {
 	Nonce			int
 }
 
-func (b *Block) Serialize() []byte {
-	var result bytes.Buffer // buffer that will store serialized data
-	encoder := gob.NewEncoder(&result) // instance of gob.Encoder that is used to encode Go values into binary
 
-	err := encoder.Encode(b) // attempts to encode
-	if err != nil { // if error, log error and terminate
-		log.Panic(err)
-	}
 
-	return result.Bytes() // return serialized data as byte array
+func NewBlock(transactions []*Transaction, prevBlockHash []byte) *Block {
+	block := &Block{time.Now().Unix(), transactions, prevBlockHash, []byte{}, 0}
+	pow := NewProofOfWork(block)
+	nonce, hash := pow.Run()
+
+	block.Hash = hash[:]
+	block.Nonce = nonce
+	return block
+}
+
+func NewGenesisBlock(coinbase *Transaction) *Block { // takes in initial transaction that creates the first block and awards cryptocurrency to miner
+	return NewBlock([]*Transaction{coinbase}, []byte{})
 }
 
 func (b *Block) HashTransactions() []byte {
@@ -42,18 +46,16 @@ func (b *Block) HashTransactions() []byte {
 	return txHash[:]
 }
 
-func NewBlock(transactions []*Transaction, prevBlockHash []byte) *Block {
-	block := &Block{time.Now().Unix(), transactions, prevBlockHash, []byte{}, 0}
-	pow := NewProofOfWork(block)
-	nonce, hash := pow.Run()
+func (b *Block) Serialize() []byte {
+	var result bytes.Buffer // buffer that will store serialized data
+	encoder := gob.NewEncoder(&result) // instance of gob.Encoder that is used to encode Go values into binary
 
-	block.Hash = hash[:]
-	block.Nonce = nonce
-	return block
-}
+	err := encoder.Encode(b) // attempts to encode
+	if err != nil { // if error, log error and terminate
+		log.Panic(err)
+	}
 
-func NewGenesisBlock(coinbase *Transaction) *Block { // takes in initial transaction that creates the first block and awards cryptocurrency to miner
-	return NewBlock([]*Transaction{coinbase}, []byte{})
+	return result.Bytes() // return serialized data as byte array
 }
 
 // Deserializes block
