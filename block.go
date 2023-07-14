@@ -4,7 +4,6 @@ package main
 
 import (
 	"bytes"
-	"crypto/sha256"
 	"encoding/gob"
 	"log"
 	"time"
@@ -34,16 +33,16 @@ func NewGenesisBlock(coinbase *Transaction) *Block { // takes in initial transac
 	return NewBlock([]*Transaction{coinbase}, []byte{})
 }
 
+// HashTransactions returns a hash of the transactions in the block
 func (b *Block) HashTransactions() []byte {
-	var txHashes [][]byte // stores the hashes of each transaction in the block
-	var txHash [32]byte // stores the final hash of all the transaction hashes combined
+	var transactions [][]byte
 
-	for _, tx := range b.Transactions { // iterates over all transactions
-		txHashes = append(txHashes, tx.ID)
+	for _, tx := range b.Transactions {
+		transactions = append(transactions, tx.Serialize())
 	}
-	txHash = sha256.Sum256(bytes.Join(txHashes, []byte{})) // concatenante the transaction hashes into single byte slice
+	mTree := NewMerkleTree(transactions)
 
-	return txHash[:]
+	return mTree.RootNode.Data
 }
 
 func (b *Block) Serialize() []byte {

@@ -12,7 +12,7 @@ var (
 	maxNonce = math.MaxInt64
 )
 
-const targetBits = 24 // defines difficulty of mining, using constant instead of target adjusting algorithm
+const targetBits = 16 // defines difficulty of mining, using constant instead of target adjusting algorithm
 
 type ProofOfWork struct {
 	block *Block
