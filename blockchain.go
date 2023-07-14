@@ -31,30 +31,30 @@ func CreateBlockchain(address string) *Blockchain {
 
 	var tip []byte
 
-	cbtx := NewCoinbaseTX(address, genesisCoinbaseData)
-	genesis := NewGenesisBlock(cbtx)
+	cbtx := NewCoinbaseTX(address, genesisCoinbaseData) // create coinbase transaction
+	genesis := NewGenesisBlock(cbtx) // create Genesis block
 
 	db, err := bolt.Open(dbFile, 0600, nil)
 	if err != nil {
 		log.Panic(err)
 	}
 
-	err = db.Update(func(tx *bolt.Tx) error {
-		b, err := tx.CreateBucket([]byte(blocksBucket))
+	err = db.Update(func(tx *bolt.Tx) error { // starts transaction on database (Update allows modifying db)
+		b, err := tx.CreateBucket([]byte(blocksBucket)) // create bucket named blocksBucket
 		if err != nil {
 			log.Panic(err)
 		}
 
-		err = b.Put(genesis.Hash, genesis.Serialize())
+		err = b.Put(genesis.Hash, genesis.Serialize()) // stores serialized form of genesis block in blocksBucket using hash as key
 		if err != nil {
 			log.Panic(err)
 		}
 
-		err = b.Put([]byte("l"), genesis.Hash)
+		err = b.Put([]byte("l"), genesis.Hash) // stores hash of genesis under 'l'
 		if err != nil {
 			log.Panic(err)
 		}
-		tip = genesis.Hash
+		tip = genesis.Hash // update tip
 
 		return nil
 	})
@@ -98,9 +98,9 @@ func NewBlockchain(address string) *Blockchain {
 
 // FindSpendableOutputs finds and returns unspent outputs to reference in inputs
 func (bc *Blockchain) FindSpendableOutputs(pubKeyHash []byte, amount int) (int, map[string][]int) {
-	unspentOutputs := make(map[string][]int)
-	unspentTXs := bc.FindUnspentTransactions(pubKeyHash)
-	accumulated := 0
+	unspentOutputs := make(map[string][]int) // initialize empty map to store transaction Id and corresponding output indices as values
+	unspentTXs := bc.FindUnspentTransactions(pubKeyHash) // retrieves slice of unspent transactions given provided pubKeyHash
+	accumulated := 0 // keep track of accumulated value of unspent outputs
 
 Work:
 	for _, tx := range unspentTXs { // for each transaction in UTXOs, convert tx.ID to hex format
@@ -123,18 +123,18 @@ Work:
 
 // FindTransaction finds a transaction by its ID
 func (bc *Blockchain) FindTransaction(ID []byte) (Transaction, error) {
-	bci := bc.Iterator()
+	bci := bc.Iterator() // initializes for iterating over blocks
 
-	for {
+	for { // iterates through the block
 		block := bci.Next()
 
 		for _, tx := range block.Transactions {
-			if bytes.Compare(tx.ID, ID) == 0 {
-				return *tx, nil
+			if bytes.Compare(tx.ID, ID) == 0 { //  compares ID
+				return *tx, nil // if matches, return the transaction and nil
 			}
 		}
 
-		if len(block.PrevBlockHash) == 0 {
+		if len(block.PrevBlockHash) == 0 { // If genesis block, break
 			break
 		}
 	}
