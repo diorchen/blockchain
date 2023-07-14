@@ -1,5 +1,3 @@
-// simple block
-
 package main
 
 import (
@@ -9,28 +7,31 @@ import (
 	"time"
 )
 
+// Block represents a block in the blockchain
 type Block struct {
-	Timestamp		int64
-	Transactions	[]*Transaction
-	PrevBlockHash	[]byte
-	Hash 			[]byte
-	Nonce			int
+	Timestamp     int64
+	Transactions  []*Transaction
+	PrevBlockHash []byte
+	Hash          []byte
+	Nonce         int
+	Height        int
 }
 
-
-
-func NewBlock(transactions []*Transaction, prevBlockHash []byte) *Block {
-	block := &Block{time.Now().Unix(), transactions, prevBlockHash, []byte{}, 0}
+// NewBlock creates and returns Block
+func NewBlock(transactions []*Transaction, prevBlockHash []byte, height int) *Block {
+	block := &Block{time.Now().Unix(), transactions, prevBlockHash, []byte{}, 0, height}
 	pow := NewProofOfWork(block)
 	nonce, hash := pow.Run()
 
 	block.Hash = hash[:]
 	block.Nonce = nonce
+
 	return block
 }
 
-func NewGenesisBlock(coinbase *Transaction) *Block { // takes in initial transaction that creates the first block and awards cryptocurrency to miner
-	return NewBlock([]*Transaction{coinbase}, []byte{})
+// NewGenesisBlock creates and returns genesis Block
+func NewGenesisBlock(coinbase *Transaction) *Block {
+	return NewBlock([]*Transaction{coinbase}, []byte{}, 0)
 }
 
 // HashTransactions returns a hash of the transactions in the block
@@ -45,19 +46,20 @@ func (b *Block) HashTransactions() []byte {
 	return mTree.RootNode.Data
 }
 
+// Serialize serializes the block
 func (b *Block) Serialize() []byte {
-	var result bytes.Buffer // buffer that will store serialized data
-	encoder := gob.NewEncoder(&result) // instance of gob.Encoder that is used to encode Go values into binary
+	var result bytes.Buffer
+	encoder := gob.NewEncoder(&result)
 
-	err := encoder.Encode(b) // attempts to encode
-	if err != nil { // if error, log error and terminate
+	err := encoder.Encode(b)
+	if err != nil {
 		log.Panic(err)
 	}
 
-	return result.Bytes() // return serialized data as byte array
+	return result.Bytes()
 }
 
-// Deserializes block
+// DeserializeBlock deserializes a block
 func DeserializeBlock(d []byte) *Block {
 	var block Block
 
